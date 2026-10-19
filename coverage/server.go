@@ -1,12 +1,15 @@
 package main
 
 import (
+	"encoding/json"
 	"encoding/xml"
+	"log"
 	"net/http"
 	"os"
 )
 
 var datasetPath = "./dataset.xml"
+const validToken = "secret-token"
 
 type xmlUser struct {
 	ID        int    `xml:"id"`
@@ -50,5 +53,27 @@ func loadUsers(path string) ([]User, error) {
 }
 
 func SearchServer(w http.ResponseWriter, r *http.Request) {
+	accessToken := r.Header.Get("AccessToken")
+	if accessToken != validToken {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
 
+	users, err := loadUsers(datasetPath)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	data, err := json.Marshal(users)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_, err = w.Write(data)
+	if err != nil {
+		log.Printf("error: %v", err)
+	}
 }

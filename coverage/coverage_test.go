@@ -1,6 +1,8 @@
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -54,5 +56,67 @@ func TestLoadUsersFirstUser(t *testing.T) {
 	}
 	if users[0] != want {
 		t.Errorf("first user:\nwant %+v\n got %+v", want, users[0])
+	}
+}
+
+func TestSearchServerOK(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(SearchServer))
+	defer ts.Close()
+
+	sc := &SearchClient{
+		AccessToken: validToken,
+		URL: ts.URL,
+	}
+
+	resp, err := sc.FindUsers(SearchRequest{Limit: 10})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(resp.Users) != 35 {
+		t.Errorf("want 35 users, got %d", len(resp.Users))
+	}
+}
+
+func TestSearchServerBadToken(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(SearchServer))
+	defer ts.Close()
+
+	sc := &SearchClient{
+		AccessToken: "invalidToken",
+		URL: ts.URL,
+	}
+
+	_, err := sc.FindUsers(SearchRequest{Limit: 10})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	
+	if err.Error() != "bad AccessToken" {
+		t.Errorf("want err: bad AccessToken, got %v", err.Error())
+	}
+}
+
+func TestSearchServerNoDataset(t *testing.T) {
+	old := datasetPath
+	datasetPath = "./unexistingWay.xml"
+	ts := httptest.NewServer(http.HandlerFunc(SearchServer))
+	defer func(){
+		datasetPath = old
+		ts.Close()
+	}()
+
+	sc := &SearchClient{
+		AccessToken: validToken,
+		URL: ts.URL,
+	}
+
+	_, err := sc.FindUsers(SearchRequest{})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	
+	if err.Error() != "SearchServer fatal error" {
+		t.Errorf("want err: SearchServer fatal error, got %v", err.Error())
 	}
 }
